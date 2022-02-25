@@ -75,13 +75,17 @@ var (
 	branch  string
 )
 
+
+
+
+
 var stop chan struct{}
 
 func reloadLoop(
 	inputFilters []string,
 	outputFilters []string,
-	aggregatorFilters []string,
-	processorFilters []string,
+	aggregatorFilters []string, // 集合过滤器
+	processorFilters []string,  // 处理器
 ) {
 	reload := make(chan bool, 1)
 	reload <- true
@@ -236,10 +240,12 @@ func formatFullVersion() string {
 }
 
 func main() {
+	// 用法
 	flag.Usage = func() { usageExit(0) }
 	flag.Parse()
 	args := flag.Args()
 
+	// what is sectionFilters?
 	sectionFilters, inputFilters, outputFilters := []string{}, []string{}, []string{}
 	if *fSectionFilters != "" {
 		sectionFilters = strings.Split(":"+strings.TrimSpace(*fSectionFilters)+":", ":")
@@ -259,8 +265,11 @@ func main() {
 		processorFilters = strings.Split(":"+strings.TrimSpace(*fProcessorFilters)+":", ":")
 	}
 
+	// 初始化日志
 	logger.SetupLogging(logger.LogConfig{})
 
+
+	// 加载插件
 	// Load external plugins, if requested.
 	if *fPlugins != "" {
 		log.Printf("I! Loading external plugins from: %s", *fPlugins)
@@ -269,6 +278,7 @@ func main() {
 		}
 	}
 
+	// 性能查询接口
 	if *pprofAddr != "" {
 		go func() {
 			pprofHostPort := *pprofAddr
@@ -286,6 +296,7 @@ func main() {
 		}()
 	}
 
+	// version and config
 	if len(args) > 0 {
 		switch args[0] {
 		case "version":
@@ -307,10 +318,12 @@ func main() {
 	switch {
 	case *fOutputList:
 		fmt.Println("Available Output Plugins: ")
-		names := make([]string, 0, len(outputs.Outputs))
+		names := make([]string, 0, len(outputs.Outputs)) // 导入时候就加载好保存
 		for k := range outputs.Outputs {
 			names = append(names, k)
 		}
+
+		// 排序后打印
 		sort.Strings(names)
 		for _, k := range names {
 			fmt.Printf("  %s\n", k)
@@ -358,6 +371,7 @@ func main() {
 		log.Println("Telegraf version already configured to: " + internal.Version())
 	}
 
+	// 程序执行
 	run(
 		inputFilters,
 		outputFilters,
