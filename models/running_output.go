@@ -254,6 +254,7 @@ func (r *RunningOutput) write(metrics []telegraf.Metric) error {
 }
 
 func (r *RunningOutput) LogBufferStatus() {
+	// 记录读取的字节数
 	nBuffer := r.buffer.Len()
 	r.log.Debugf("Buffer fullness: %d / %d metrics", nBuffer, r.MetricBufferLimit)
 }

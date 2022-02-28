@@ -11,6 +11,7 @@ type Processor interface {
 }
 
 // StreamingProcessor is a processor that can take in a stream of messages
+// 流处理器
 type StreamingProcessor interface {
 	PluginDescriber
 

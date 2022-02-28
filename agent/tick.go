@@ -32,7 +32,7 @@ type Ticker interface {
 // until the next tick.
 type AlignedTicker struct {
 	interval    time.Duration
-	jitter      time.Duration
+	jitter      time.Duration // 嘀嗒
 	minInterval time.Duration
 	ch          chan time.Time
 	cancel      context.CancelFunc
@@ -65,6 +65,7 @@ func newAlignedTicker(now time.Time, interval, jitter time.Duration, clock clock
 	return t
 }
 
+
 func (t *AlignedTicker) next(now time.Time) time.Duration {
 	// Add minimum interval size to avoid scheduling an interval that is
 	// exceptionally short.  This avoids an issue that can occur where the
@@ -72,28 +73,31 @@ func (t *AlignedTicker) next(now time.Time) time.Duration {
 	next := now.Add(t.minInterval)
 
 	next = internal.AlignTime(next, t.interval)
+	// 下次时间减去当前的时间
 	d := next.Sub(now)
 	if d == 0 {
 		d = t.interval
 	}
+
+	// 处理抖动
 	d += internal.RandomDuration(t.jitter)
 	return d
 }
 
+// 定时器运行
 func (t *AlignedTicker) run(ctx context.Context, timer *clock.Timer) {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-ctx.Done(): // 取消定时器
 			timer.Stop()
 			return
-		case now := <-timer.C:
+		case now := <-timer.C: // 到时时间到了
 			select {
 			case t.ch <- now:
 			default:
 			}
-
-			d := t.next(now)
-			timer.Reset(d)
+			d := t.next(now) // duration
+			timer.Reset(d)  // 重置定时器为下次过期时间
 		}
 	}
 }
@@ -232,6 +236,7 @@ func newRollingTicker(interval, jitter time.Duration, clock clock.Clock) *Rollin
 	}
 
 	d := t.next()
+	// 定时器
 	timer := clock.Timer(d)
 
 	t.wg.Add(1)

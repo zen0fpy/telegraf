@@ -17,6 +17,7 @@ type Output interface {
 // AggregatingOutput adds aggregating functionality to an Output.  May be used
 // if the Output only accepts a fixed set of aggregations over a time period.
 // These functions may be called concurrently to the Write function.
+// 聚合输出
 type AggregatingOutput interface {
 	Output
 

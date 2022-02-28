@@ -101,6 +101,7 @@ func reloadLoop(
 			select {
 			case sig := <-signals:
 				if sig == syscall.SIGHUP {
+					// 加载配置
 					log.Printf("I! Reloading Telegraf config")
 					<-reload
 					reload <- true
@@ -111,6 +112,7 @@ func reloadLoop(
 			}
 		}()
 
+		// 运行agent
 		err := runAgent(ctx, inputFilters, outputFilters)
 		if err != nil && err != context.Canceled {
 			log.Fatalf("E! [telegraf] Error running agent: %v", err)
@@ -118,6 +120,8 @@ func reloadLoop(
 	}
 }
 
+
+// agent主流程
 func runAgent(ctx context.Context,
 	inputFilters []string,
 	outputFilters []string,
@@ -125,9 +129,12 @@ func runAgent(ctx context.Context,
 	log.Printf("I! Starting Telegraf %s", version)
 
 	// If no other options are specified, load the config file and run.
+	// 初始化配置
 	c := config.NewConfig()
 	c.OutputFilters = outputFilters
 	c.InputFilters = inputFilters
+
+	// 加载配置
 	err := c.LoadConfig(*fConfig)
 	if err != nil {
 		return err

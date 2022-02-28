@@ -19,6 +19,8 @@ type accumulator struct {
 	precision time.Duration
 }
 
+// NewAccumulator
+// 累加器
 func NewAccumulator(
 	maker MetricMaker,
 	metrics chan<- telegraf.Metric,

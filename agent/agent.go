@@ -72,7 +72,7 @@ type processorUnit struct {
 //            └────────────────────────▶ ()_____)
 type aggregatorUnit struct {
 	src         <-chan telegraf.Metric
-	aggC        chan<- telegraf.Metric
+	aggC        chan<- telegraf.Metric        // 这里多一个aggregator chan用来保存聚合过程数据
 	outputC     chan<- telegraf.Metric
 	aggregators []*models.RunningAggregator
 }
@@ -109,29 +109,35 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	startTime := time.Now()
 
+	// 启动Output
 	log.Printf("D! [agent] Connecting outputs")
 	next, ou, err := a.startOutputs(ctx, a.Config.Outputs)
 	if err != nil {
 		return err
 	}
 
+	// 启动Aggregators
 	var apu []*processorUnit
 	var au *aggregatorUnit
 	if len(a.Config.Aggregators) != 0 {
+		// 注意这里
 		aggC := next
 		if len(a.Config.AggProcessors) != 0 {
+			// 聚合处理器
 			aggC, apu, err = a.startProcessors(next, a.Config.AggProcessors)
 			if err != nil {
 				return err
 			}
 		}
 
+		// 启动聚合
 		next, au, err = a.startAggregators(aggC, next, a.Config.Aggregators)
 		if err != nil {
 			return err
 		}
 	}
 
+	// 启动Processors
 	var pu []*processorUnit
 	if len(a.Config.Processors) != 0 {
 		next, pu, err = a.startProcessors(next, a.Config.Processors)
@@ -140,11 +146,15 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 	}
 
+	// 启动Input
 	iu, err := a.startInputs(next, a.Config.Inputs)
 	if err != nil {
 		return err
 	}
 
+
+	// waitgroup 启动一个goroutines
+	// 处理outputs、aggregator、processor、inputs等逻辑
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -154,6 +164,9 @@ func (a *Agent) Run(ctx context.Context) error {
 			log.Printf("E! [agent] Error running outputs: %v", err)
 		}
 	}()
+
+
+
 
 	if au != nil {
 		wg.Add(1)
@@ -241,6 +254,7 @@ func (a *Agent) initPlugins() error {
 	return nil
 }
 
+// 启动Input
 func (a *Agent) startInputs(
 	dst chan<- telegraf.Metric,
 	inputs []*models.RunningInput,
@@ -260,7 +274,7 @@ func (a *Agent) startInputs(
 			// Gather() accumulator does apply rounding according to the
 			// precision and interval agent/plugin settings.
 			var interval time.Duration
-			var precision time.Duration
+			var precision time.Duration // 一般不支持精度设置
 			if input.Config.Precision != 0 {
 				precision = input.Config.Precision
 			}
@@ -268,6 +282,7 @@ func (a *Agent) startInputs(
 			acc := NewAccumulator(input, dst)
 			acc.SetPrecision(getPrecision(precision, interval))
 
+			// Input Service启动
 			err := si.Start(acc)
 			if err != nil {
 				stopServiceInputs(unit.inputs)
@@ -507,20 +522,25 @@ func (a *Agent) gatherOnce(
 // startProcessors sets up the processor chain and calls Start on all
 // processors.  If an error occurs any started processors are Stopped.
 func (a *Agent) startProcessors(
-	dst chan<- telegraf.Metric,
+	dst chan<- telegraf.Metric,  // 如果是AggrProcessor, dst来自Output用来接收Aggregators的chan
 	processors models.RunningProcessors,
 ) (chan<- telegraf.Metric, []*processorUnit, error) {
 	var units []*processorUnit
 
+	// 逆向处理
 	// Sort from last to first
 	sort.SliceStable(processors, func(i, j int) bool {
 		return processors[i].Config.Order > processors[j].Config.Order
 	})
 
+
+	// 多个处理器处理顺序
 	var src chan telegraf.Metric
 	for _, processor := range processors {
 		src = make(chan telegraf.Metric, 100)
+		// 累加器, 指标处理
 		acc := NewAccumulator(processor, dst)
+
 
 		err := processor.Start(acc)
 		if err != nil {
@@ -537,6 +557,8 @@ func (a *Agent) startProcessors(
 			processor: processor,
 		})
 
+		// 注意这里
+		// Processor逆向排序过的，后面src=>前一个dst
 		dst = src
 	}
 
@@ -572,10 +594,12 @@ func (a *Agent) runProcessors(
 }
 
 // startAggregators sets up the aggregator unit and returns the source channel.
+// 初始化聚合器
 func (a *Agent) startAggregators(
 	aggC chan<- telegraf.Metric,
 	outputC chan<- telegraf.Metric,
 	aggregators []*models.RunningAggregator,
+
 ) (chan<- telegraf.Metric, *aggregatorUnit, error) {
 	src := make(chan telegraf.Metric, 100)
 	unit := &aggregatorUnit{
@@ -694,10 +718,15 @@ func (a *Agent) startOutputs(
 	ctx context.Context,
 	outputs []*models.RunningOutput,
 ) (chan<- telegraf.Metric, *outputUnit, error) {
+	// 存储100个来源指标的通道
 	src := make(chan telegraf.Metric, 100)
 	unit := &outputUnit{src: src}
+
+	// 和远端Output Receiver建立连接
 	for _, output := range outputs {
 		err := a.connectOutput(ctx, output)
+
+		// 建立连接失败，退出
 		if err != nil {
 			for _, output := range unit.outputs {
 				output.Close()
@@ -707,10 +736,13 @@ func (a *Agent) startOutputs(
 
 		unit.outputs = append(unit.outputs, output)
 	}
-
+	// 返回用来接收chan 和output unit
 	return src, unit, nil
 }
 
+
+// 这里就是发起一个tcp连接，或者长连接
+// 注意: 这里只有在开始插件启动时候,连接一次，后面失败会导致指标没有发送
 // connectOutputs connects to all outputs.
 func (a *Agent) connectOutput(ctx context.Context, output *models.RunningOutput) error {
 	log.Printf("D! [agent] Attempting connection to [%s]", output.LogName())
@@ -719,11 +751,13 @@ func (a *Agent) connectOutput(ctx context.Context, output *models.RunningOutput)
 		log.Printf("E! [agent] Failed to connect to [%s], retrying in 15s, "+
 			"error was '%s'", output.LogName(), err)
 
+		// 连接失败后，等待15s后才连接
 		err := internal.SleepContext(ctx, 15*time.Second)
 		if err != nil {
 			return err
 		}
 
+		// 第二次失败,退出不在重试
 		err = output.Output.Connect()
 		if err != nil {
 			return fmt.Errorf("Error connecting to output %q: %w", output.LogName(), err)
@@ -741,14 +775,19 @@ func (a *Agent) runOutputs(
 ) error {
 	var wg sync.WaitGroup
 
+	// 扇出:   one chan -> multi output
+	// 用wg 实现
 	// Start flush loop
-	interval := a.Config.Agent.FlushInterval.Duration
-	jitter := a.Config.Agent.FlushJitter.Duration
 
+	interval := a.Config.Agent.FlushInterval.Duration     // 刷新频率
+	jitter := a.Config.Agent.FlushJitter.Duration         // 抖动
+
+	// 控制goroutine退出
 	ctx, cancel := context.WithCancel(context.Background())
 
 	for _, output := range unit.outputs {
 		interval := interval
+
 		// Overwrite agent flush_interval if this plugin has its own.
 		if output.Config.FlushInterval != 0 {
 			interval = output.Config.FlushInterval
@@ -760,10 +799,14 @@ func (a *Agent) runOutputs(
 			jitter = output.Config.FlushJitter
 		}
 
+		// 启动一个goroutine
+		// 如果output多的话，goroutines启动也就多了
+		// 如果保证影响到业务
 		wg.Add(1)
 		go func(output *models.RunningOutput) {
 			defer wg.Done()
 
+			// 定时器
 			ticker := NewRollingTicker(interval, jitter)
 			defer ticker.Stop()
 
@@ -771,6 +814,8 @@ func (a *Agent) runOutputs(
 		}(output)
 	}
 
+
+	// 遍历aggregator src,  添加到output中
 	for metric := range unit.src {
 		for i, output := range unit.outputs {
 			if i == len(a.Config.Outputs)-1 {
@@ -802,13 +847,16 @@ func (a *Agent) flushLoop(
 	}
 
 	// watch for flush requests
+	// 停止时候退出刷新
 	flushRequested := make(chan os.Signal, 1)
 	watchForFlushSignal(flushRequested)
 	defer stopListeningForFlushSignal(flushRequested)
 
+	// ticker时间就刷新一次
 	for {
 		// Favor shutdown over other methods.
 		select {
+		// 取消就退出
 		case <-ctx.Done():
 			logError(a.flushOnce(output, ticker, output.Write))
 			return
@@ -819,14 +867,14 @@ func (a *Agent) flushLoop(
 		case <-ctx.Done():
 			logError(a.flushOnce(output, ticker, output.Write))
 			return
-		case <-ticker.Elapsed():
+		case <-ticker.Elapsed():  // 到点保存指标
 			logError(a.flushOnce(output, ticker, output.Write))
-		case <-flushRequested:
+		case <-flushRequested:    // 收到保存指标请求的信号
 			logError(a.flushOnce(output, ticker, output.Write))
-		case <-output.BatchReady:
+		case <-output.BatchReady: // 到达批量写入数目
 			// Favor the ticker over batch ready
 			select {
-			case <-ticker.Elapsed():
+			case <-ticker.Elapsed(): // 也到定时写入时间
 				logError(a.flushOnce(output, ticker, output.Write))
 			default:
 				logError(a.flushOnce(output, ticker, output.WriteBatch))
@@ -837,22 +885,26 @@ func (a *Agent) flushLoop(
 
 // flushOnce runs the output's Write function once, logging a warning each
 // interval it fails to complete before.
+// 刷新一次指标
 func (a *Agent) flushOnce(
 	output *models.RunningOutput,
 	ticker Ticker,
 	writeFunc func() error,
 ) error {
 	done := make(chan error)
+	// 这里有启动一个goroutine保存指标
 	go func() {
 		done <- writeFunc()
 	}()
 
+
+	// 写入成功后保存 记录读取字节数
 	for {
 		select {
 		case err := <-done:
 			output.LogBufferStatus()
 			return err
-		case <-ticker.Elapsed():
+		case <-ticker.Elapsed(): // 定时到点
 			log.Printf("W! [agent] [%q] did not complete within its flush interval",
 				output.LogName())
 			output.LogBufferStatus()
