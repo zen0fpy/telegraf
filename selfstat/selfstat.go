@@ -22,6 +22,7 @@ var (
 
 // Stat is an interface for dealing with telegraf statistics collected
 // on itself.
+// 指标统计
 type Stat interface {
 	// Name is the name of the measurement
 	Name() string

@@ -112,10 +112,15 @@ func (r *RunningInput) MakeMetric(metric telegraf.Metric) telegraf.Metric {
 	return m
 }
 
+// Gather 收集指标
 func (r *RunningInput) Gather(acc telegraf.Accumulator) error {
+	// 传入一个累加器
 	start := time.Now()
 	err := r.Input.Gather(acc)
+
+	// 花费时间
 	elapsed := time.Since(start)
+	// 加上已经花费时间
 	r.GatherTime.Incr(elapsed.Nanoseconds())
 	return err
 }

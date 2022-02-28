@@ -280,6 +280,7 @@ func (a *Agent) startInputs(
 			}
 
 			acc := NewAccumulator(input, dst)
+			// 设置精度
 			acc.SetPrecision(getPrecision(precision, interval))
 
 			// Input Service启动
@@ -296,9 +297,9 @@ func (a *Agent) startInputs(
 }
 
 // runInputs starts and triggers the periodic gather for Inputs.
-//
 // When the context is done the timers are stopped and this function returns
 // after all ongoing Gather calls complete.
+// 定时去收集数据, context cancel才返回
 func (a *Agent) runInputs(
 	ctx context.Context,
 	startTime time.Time,
@@ -324,6 +325,8 @@ func (a *Agent) runInputs(
 			jitter = input.Config.CollectionJitter
 		}
 
+		// 创建定时器, 能处理抖动
+		// 对齐
 		var ticker Ticker
 		if a.Config.Agent.RoundInterval {
 			ticker = NewAlignedTicker(startTime, interval, jitter)
@@ -464,6 +467,7 @@ func stopServiceInputs(inputs []*models.RunningInput) {
 
 // gather runs an input's gather function periodically until the context is
 // done.
+// 收集循环
 func (a *Agent) gatherLoop(
 	ctx context.Context,
 	acc telegraf.Accumulator,
@@ -638,6 +642,7 @@ func (a *Agent) runAggregators(
 				}
 			}
 
+			// 放弃原来的
 			if !dropOriginal {
 				unit.outputC <- metric // keep original.
 			} else {

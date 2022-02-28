@@ -79,10 +79,32 @@
             )
          )
 
+   runAggregator(
+     for (
+        go (wg)(
+           aggregator.Add(Metric)
+        )
+    )
+   )
 
-   runAggregator()
-   runProcessor()
-   runInputs()
+   runProcessor(
+      for (
+         go (wg)(
+              processor.process(metric, Accumulator)
+         )
+      )
+   )
+
+   runInputs(
+     for(
+        go (wg) (
+            for-select(
+               go(deal-metric)
+               )
+            )
+        )
+     )
+   )
 )
 
 
