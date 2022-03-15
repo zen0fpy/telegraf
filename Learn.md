@@ -25,16 +25,16 @@
    多个Input构成一个InputUnit
    Aggregator还包含有AggProcessor
                                  *
-            |---> Inputs ---------------> InputUnit                 |
-            |                                 |                     |
-            |                    *            V                     |
-   Config ->|---> Processor ------------> ProcessorUnit             |
-            |                                 |                   指标数据
-            |                    *            V                     | 
-            |---> Aggregator -----------> AggregatorUnit            |
-            |                                 |                     |
-            |                    *            V                     |
-            |---> Outputs --------------> OutputUnit                V
+            |---> Inputs ---------------> InputUnit--->Filter ---            |         |
+            |                                 |                 |            |         |
+            |                    *            V                 |            |         |
+   Config ->|---> Processor ------------> ProcessorUnit <--------            |         |
+            |                                 |                           指标数据   Accumulator
+            |                    *            V                              |         |
+            |---> Aggregator -----------> AggregatorUnit                     |         |
+            |                                 |                              |         |
+            |                    *            V                              |         |
+            |---> Outputs --------------> OutputUnit                         V         V
 )
 
 
@@ -115,3 +115,5 @@
 5. 怎么打印日志，日志分类（Access, Error)
 6. 怎么实现插件，加载插件（动态？）
 7. 性能查询接口 (有没有必要激活, 临时开启用处大不大)
+8. CPU资源等限制
+9. 自适应负载调整, 上报指标

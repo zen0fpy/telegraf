@@ -33,6 +33,7 @@ func NewAccumulator(
 	return &acc
 }
 
+// AddFields 累加器
 func (ac *accumulator) AddFields(
 	measurement string,
 	fields map[string]interface{},
@@ -81,10 +82,13 @@ func (ac *accumulator) AddHistogram(
 func (ac *accumulator) AddMetric(m telegraf.Metric) {
 	m.SetTime(m.Time().Round(ac.precision))
 	if m := ac.maker.MakeMetric(m); m != nil {
+		// 这里指标传给累加器的, metricsChan，而metricChan就是Inputs的Dst Chan
+		// maker就是input插件
 		ac.metrics <- m
 	}
 }
 
+// 添加字段
 func (ac *accumulator) addFields(
 	measurement string,
 	tags map[string]string,

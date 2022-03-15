@@ -9,10 +9,11 @@ import (
 	"github.com/influxdata/telegraf"
 )
 
+// 指标
 type metric struct {
 	name   string
-	tags   []*telegraf.Tag
-	fields []*telegraf.Field
+	tags   []*telegraf.Tag   // 标签
+	fields []*telegraf.Field // 字段
 	tm     time.Time
 
 	tp        telegraf.ValueType

@@ -12,7 +12,7 @@ import (
 
 type CPUStats struct {
 	ps        system.PS
-	lastStats map[string]cpu.TimesStat
+	lastStats map[string]cpu.TimesStat  // 内存中保存上次记录
 
 	PerCPU         bool `toml:"percpu"`
 	TotalCPU       bool `toml:"totalcpu"`
@@ -32,6 +32,7 @@ func (c *CPUStats) Description() string {
 	return "Read metrics about cpu usage"
 }
 
+// 配置样式
 var sampleConfig = `
   ## Whether to report per-cpu stats or not
   percpu = true
@@ -79,6 +80,7 @@ func (c *CPUStats) Gather(acc telegraf.Accumulator) error {
 			if c.ReportActive {
 				fieldsC["time_active"] = activeCPUTime(cts)
 			}
+			// 累加器
 			acc.AddCounter("cpu", fieldsC, tags, now)
 		}
 
@@ -120,6 +122,7 @@ func (c *CPUStats) Gather(acc telegraf.Accumulator) error {
 		if c.ReportActive {
 			fieldsG["usage_active"] = 100 * (active - lastActive) / totalDelta
 		}
+		// 仪表盘
 		acc.AddGauge("cpu", fieldsG, tags, now)
 	}
 
@@ -141,6 +144,8 @@ func activeCPUTime(t cpu.TimesStat) float64 {
 	return active
 }
 
+
+// 导入时候就初始化好
 func init() {
 	inputs.Add("cpu", func() telegraf.Input {
 		return &CPUStats{

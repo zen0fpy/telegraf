@@ -87,6 +87,7 @@ func (r *RunningInput) Init() error {
 	return nil
 }
 
+// MakeMetric 生成指标
 func (r *RunningInput) MakeMetric(metric telegraf.Metric) telegraf.Metric {
 	if ok := r.Config.Filter.Select(metric); !ok {
 		r.metricFiltered(metric)

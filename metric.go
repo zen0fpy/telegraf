@@ -23,7 +23,9 @@ type Tag struct {
 	Value string
 }
 
+
 // Field represents a single field key and value.
+// 字段和标签不同, 就是Value不同
 type Field struct {
 	Key   string
 	Value interface{}
